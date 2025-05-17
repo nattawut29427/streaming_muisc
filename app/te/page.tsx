@@ -7,30 +7,39 @@ export default function HowlerDemoPage() {
   const playlist = [
     { title: "Song 1", src: "/audio/song.mp3" },
     { title: "Song 2", src: "/audio/song2.mp3" },
-    // เพิ่มเพลงอื่น ๆ ได้
   ];
 
-  const [volume, setVolume] = useState(0.7); 
+  const [volume, setVolume] = useState(0.7);
 
-useEffect(() => {
-  const savedVolume = localStorage.getItem('volume');
-  if (savedVolume !== null) {
-    setVolume(parseFloat(savedVolume));
-  }
-}, []);
-  
-const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  useEffect(() => {
+    const savedVolume = localStorage.getItem("volume");
+    if (savedVolume !== null) {
+      setVolume(parseFloat(savedVolume));
+    }
+  }, []);
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
-    localStorage.setItem('volume', newVolume.toString());
+    localStorage.setItem("volume", newVolume.toString());
     if (sound) {
       sound.volume(newVolume);
     }
   };
 
+  const [duration, setDuration] = useState(0);
+  const [position, setPosition] = useState(0);
+
   const [sound, setSound] = useState<Howl | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  const formatTime = (seconds: number) => {
+    const min = Math.floor(seconds / 60);
+    const sec = Math.floor(seconds % 60).toString().padStart(2, '0');
+    return `${min}:${sec}`;
+  };
+  
 
   const playSound = (index: number) => {
     if (sound) {
@@ -41,9 +50,12 @@ const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       src: [playlist[index].src],
       volume: volume,
       autoplay: true,
+      onload: () => {
+        setDuration(newSound.duration()); 
+      },
       onend: () => {
-        setIsPlaying(false);
-        console.log("เพลงจบแล้ว");
+        const nextIndex = (currentIndex + 1) % playlist.length;
+        playSound(nextIndex);
       },
     });
 
@@ -62,12 +74,39 @@ const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     }
   };
 
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    if (sound && isPlaying) {
+      interval = setInterval(() => {
+        const currentTime = sound.seek() as number;
+        setPosition(currentTime);
+      }, 500);
+    }
+
+    return () => clearInterval(interval);
+  }, [sound, isPlaying]);
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newPos = parseFloat(e.target.value);
+    setPosition(newPos);
+    if (sound) {
+      sound.seek(newPos);
+    }
+  };
+
   const handleNext = () => {
+    if (sound) {
+      sound.stop();
+    }
     const nextIndex = (currentIndex + 1) % playlist.length;
     playSound(nextIndex);
   };
 
   const handleBefore = () => {
+    if (sound) {
+      sound.stop();
+    }
     const nextIndex = (currentIndex - 1) % playlist.length;
     playSound(nextIndex);
   };
@@ -78,8 +117,6 @@ const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       setIsPlaying(false);
     }
   };
-
-
 
   return (
     <div className="p-6 space-y-4 m-auto max-w-md ">
@@ -126,6 +163,20 @@ const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
             step="0.01"
             value={volume}
             onChange={handleVolumeChange}
+            className="w-full"
+          />
+        </div>
+        <div className="mt-4">
+          <label className="block text-sm font-medium mb-1">
+            {formatTime(position)} / {formatTime(duration)}
+          </label>
+          <input
+            type="range"
+            min={0}
+            max={duration}
+            step={0.1}
+            value={position}
+            onChange={handleSeek}
             className="w-full"
           />
         </div>
